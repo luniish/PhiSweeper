@@ -1,0 +1,516 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>PhiSweeper</title>
+  <link href="https://fonts.googleapis.com/css2?family=Share+Tech+Mono&family=Bebas+Neue&display=swap" rel="stylesheet">
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      background: #ffffff;
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      font-family: 'Share Tech Mono', monospace;
+      padding: 20px;
+      user-select: none;
+    }
+
+    #title {
+      font-family: 'Bebas Neue', sans-serif;
+      font-size: clamp(32px, 6vw, 56px);
+      letter-spacing: 0.15em;
+      background: linear-gradient(135deg, #c9a050, #e8c97e, #c9a050);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+      margin-bottom: 4px;
+    }
+
+    #subtitle {
+      color: #8090a8;
+      font-size: 11px;
+      letter-spacing: 0.3em;
+      margin-bottom: 20px;
+    }
+
+    #difficulty-bar {
+      display: flex;
+      gap: 8px;
+      margin-bottom: 16px;
+    }
+
+    .diff-btn {
+      padding: 6px 18px;
+      background: transparent;
+      border: 1px solid #ccc;
+      color: #999;
+      cursor: pointer;
+      font-family: 'Share Tech Mono', monospace;
+      font-size: 12px;
+      letter-spacing: 0.1em;
+      border-radius: 2px;
+      transition: all 0.15s;
+    }
+
+    .diff-btn:hover { border-color: #c9a050; color: #c9a050; }
+    .diff-btn.active { border-color: #c9a050; color: #c9a050; background: rgba(201,160,80,0.08); }
+
+    #hud {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 10px 16px;
+      background: #dde2f0;
+      border: 1px solid #8090b8;
+      border-bottom: none;
+      width: var(--board-width);
+    }
+
+    .hud-stat {
+      font-size: 16px;
+      font-weight: bold;
+      letter-spacing: 0.05em;
+      min-width: 60px;
+    }
+
+    #mine-count { color: #c0392b; }
+    #timer { color: #1a6bbf; text-align: right; }
+
+    #reset-btn {
+      background: none;
+      border: 1px solid #8090b8;
+      color: #c9a050;
+      font-size: 20px;
+      cursor: pointer;
+      width: 38px;
+      height: 38px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      border-radius: 2px;
+      transition: all 0.15s;
+    }
+
+    #reset-btn:hover { border-color: #c9a050; background: rgba(201,160,80,0.1); }
+
+    #board-wrap {
+      position: relative;
+      border: 1px solid #8090b8;
+      background: #c8cfe8;
+      line-height: 0;
+      box-shadow: 0 4px 24px rgba(0,0,0,0.12);
+    }
+
+    .board-row { display: flex; }
+
+    .cell {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      border: 1px solid #8090b8;
+      background: #c8cfe8;
+      cursor: pointer;
+      font-family: 'Share Tech Mono', monospace;
+      font-weight: bold;
+      font-size: 14px;
+      transition: background 0.08s;
+      box-shadow: inset 2px 2px 0 #e8ecff, inset -2px -2px 0 #9098b8;
+    }
+
+    .cell:hover:not(.revealed):not(.dead-mine) {
+      background: #d8deee;
+    }
+
+    .cell.revealed {
+      background: #e8ecf5;
+      border-color: #c0c8dc;
+      box-shadow: none;
+      cursor: default;
+    }
+
+    .cell.mine-revealed {
+      background: #f0c8c8;
+      border-color: #c0c8dc;
+      box-shadow: none;
+    }
+
+    .cell.dead-mine {
+      background: #f5a0a0 !important;
+    }
+
+    .cell.flagged {
+      color: #c9a050;
+    }
+
+    .cell.win-flag {
+      color: #2a8a3a;
+    }
+
+    /* Number colors */
+    .n1 { color: #1a6bbf; }
+    .n2 { color: #2a8a3a; }
+    .n3 { color: #c0392b; }
+    .n4 { color: #6c3483; }
+    .n5 { color: #a04000; }
+    .n6 { color: #1a7a7a; }
+    .n7 { color: #2c2c2c; }
+    .n8 { color: #707070; }
+
+    #overlay {
+      display: none;
+      position: absolute;
+      inset: 0;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      backdrop-filter: blur(3px);
+    }
+
+    #overlay.show { display: flex; }
+    #overlay.won { background: rgba(240,255,245,0.9); }
+    #overlay.lost { background: rgba(255,240,240,0.9); }
+
+    #overlay-title {
+      font-family: 'Bebas Neue', sans-serif;
+      font-size: clamp(28px, 5vw, 48px);
+      letter-spacing: 0.15em;
+      margin-bottom: 6px;
+    }
+
+    #overlay.won #overlay-title { color: #2a8a3a; }
+    #overlay.lost #overlay-title { color: #c0392b; }
+
+    #overlay-sub {
+      color: #888;
+      font-size: 12px;
+      letter-spacing: 0.2em;
+      margin-bottom: 18px;
+    }
+
+    #overlay-btn {
+      padding: 8px 28px;
+      background: transparent;
+      font-family: 'Share Tech Mono', monospace;
+      font-size: 12px;
+      letter-spacing: 0.2em;
+      cursor: pointer;
+      border-radius: 2px;
+      transition: all 0.15s;
+    }
+
+    #overlay.won #overlay-btn { border: 1px solid #2a8a3a; color: #2a8a3a; }
+    #overlay.won #overlay-btn:hover { background: rgba(42,138,58,0.1); }
+    #overlay.lost #overlay-btn { border: 1px solid #c0392b; color: #c0392b; }
+    #overlay.lost #overlay-btn:hover { background: rgba(192,57,43,0.1); }
+
+    #footer {
+      color: #a0a8c0;
+      font-size: 10px;
+      margin-top: 14px;
+      letter-spacing: 0.2em;
+    }
+  </style>
+</head>
+<body>
+
+<div id="title">φ PhiSweeper</div>
+<div id="subtitle">φ = 1.618033988749895</div>
+
+<div id="difficulty-bar">
+  <button class="diff-btn active" data-diff="easy">Easy</button>
+  <button class="diff-btn" data-diff="medium">Medium</button>
+  <button class="diff-btn" data-diff="hard">Hard</button>
+</div>
+
+<div id="hud">
+  <div class="hud-stat" id="mine-count">💣 010</div>
+  <button id="reset-btn" title="New Game">⬡</button>
+  <div class="hud-stat" id="timer">⏱ 000</div>
+</div>
+
+<div id="board-wrap">
+  <div id="board"></div>
+  <div id="overlay">
+    <div id="overlay-title"></div>
+    <div id="overlay-sub"></div>
+    <button id="overlay-btn">PLAY AGAIN</button>
+  </div>
+</div>
+
+<div id="footer">LEFT CLICK: REVEAL &nbsp;·&nbsp; RIGHT CLICK / CTRL+CLICK: FLAG</div>
+
+<script>
+  const DIFFICULTIES = {
+    easy:   { rows: 9,  cols: 9,  mines: 10 },
+    medium: { rows: 16, cols: 16, mines: 40 },
+    hard:   { rows: 16, cols: 30, mines: 99 },
+  };
+
+  let difficulty = 'easy';
+  let board = [];
+  let gameState = 'idle'; // idle, playing, won, lost
+  let minesLeft = 10;
+  let timeVal = 0;
+  let timerInterval = null;
+  let deathCell = null;
+
+  function getCellSize() {
+    const cols = DIFFICULTIES[difficulty].cols;
+    return cols > 20 ? 28 : 34;
+  }
+
+  function initBoard() {
+    const { rows, cols, mines } = DIFFICULTIES[difficulty];
+    board = [];
+    for (let r = 0; r < rows; r++) {
+      board[r] = [];
+      for (let c = 0; c < cols; c++) {
+        board[r][c] = { mine: false, revealed: false, flagged: false, count: 0 };
+      }
+    }
+    minesLeft = mines;
+    gameState = 'idle';
+    timeVal = 0;
+    deathCell = null;
+    clearInterval(timerInterval);
+    updateHUD();
+    renderBoard();
+    hideOverlay();
+    document.getElementById('reset-btn').textContent = '⬡';
+  }
+
+  function placeMines(firstR, firstC) {
+    const { rows, cols, mines } = DIFFICULTIES[difficulty];
+    let placed = 0;
+    while (placed < mines) {
+      const r = Math.floor(Math.random() * rows);
+      const c = Math.floor(Math.random() * cols);
+      if (!board[r][c].mine && !(Math.abs(r - firstR) <= 1 && Math.abs(c - firstC) <= 1)) {
+        board[r][c].mine = true;
+        placed++;
+      }
+    }
+    for (let r = 0; r < rows; r++) {
+      for (let c = 0; c < cols; c++) {
+        if (!board[r][c].mine) {
+          let cnt = 0;
+          for (let dr = -1; dr <= 1; dr++)
+            for (let dc = -1; dc <= 1; dc++) {
+              const nr = r+dr, nc = c+dc;
+              if (nr >= 0 && nr < rows && nc >= 0 && nc < cols && board[nr][nc].mine) cnt++;
+            }
+          board[r][c].count = cnt;
+        }
+      }
+    }
+  }
+
+  function floodReveal(row, col) {
+    const { rows, cols } = DIFFICULTIES[difficulty];
+    const stack = [[row, col]];
+    const visited = new Set();
+    while (stack.length) {
+      const [r, c] = stack.pop();
+      const key = r * cols + c;
+      if (visited.has(key)) continue;
+      visited.add(key);
+      board[r][c].revealed = true;
+      if (board[r][c].count === 0) {
+        for (let dr = -1; dr <= 1; dr++)
+          for (let dc = -1; dc <= 1; dc++) {
+            const nr = r+dr, nc = c+dc;
+            if (nr >= 0 && nr < rows && nc >= 0 && nc < cols && !board[nr][nc].revealed && !board[nr][nc].flagged)
+              stack.push([nr, nc]);
+          }
+      }
+    }
+  }
+
+  function checkWin() {
+    const { rows, cols, mines } = DIFFICULTIES[difficulty];
+    let revealed = 0;
+    for (let r = 0; r < rows; r++)
+      for (let c = 0; c < cols; c++)
+        if (board[r][c].revealed) revealed++;
+    return revealed >= rows * cols - mines;
+  }
+
+  function handleCellClick(r, c, isFlag) {
+    if (gameState === 'won' || gameState === 'lost') return;
+
+    if (isFlag) {
+      if (board[r][c].revealed) return;
+      board[r][c].flagged = !board[r][c].flagged;
+      minesLeft += board[r][c].flagged ? -1 : 1;
+      updateHUD();
+      updateCell(r, c);
+      return;
+    }
+
+    if (board[r][c].flagged || board[r][c].revealed) return;
+
+    if (gameState === 'idle') {
+      placeMines(r, c);
+      gameState = 'playing';
+      timerInterval = setInterval(() => {
+        timeVal = Math.min(999, timeVal + 1);
+        updateHUD();
+      }, 1000);
+    }
+
+    if (board[r][c].mine) {
+      board[r][c].revealed = true;
+      deathCell = { r, c };
+      const { rows, cols } = DIFFICULTIES[difficulty];
+      for (let rr = 0; rr < rows; rr++)
+        for (let cc = 0; cc < cols; cc++)
+          if (board[rr][cc].mine) board[rr][cc].revealed = true;
+      gameState = 'lost';
+      clearInterval(timerInterval);
+      renderBoard();
+      document.getElementById('reset-btn').textContent = '💀';
+      showOverlay('lost');
+      return;
+    }
+
+    floodReveal(r, c);
+
+    if (checkWin()) {
+      gameState = 'won';
+      clearInterval(timerInterval);
+      renderBoard();
+      document.getElementById('reset-btn').textContent = '🏆';
+      showOverlay('won');
+      return;
+    }
+
+    renderBoard();
+  }
+
+  function updateHUD() {
+    document.getElementById('mine-count').textContent = '💣 ' + String(Math.max(0, minesLeft)).padStart(3, '0');
+    document.getElementById('timer').textContent = '⏱ ' + String(timeVal).padStart(3, '0');
+  }
+
+  function renderBoard() {
+    const { rows, cols } = DIFFICULTIES[difficulty];
+    const size = getCellSize();
+    const boardEl = document.getElementById('board');
+    boardEl.innerHTML = '';
+
+    const boardWrap = document.getElementById('board-wrap');
+    const totalW = cols * size;
+    boardWrap.style.setProperty('--board-width', totalW + 'px');
+    document.getElementById('hud').style.width = totalW + 'px';
+
+    for (let r = 0; r < rows; r++) {
+      const rowEl = document.createElement('div');
+      rowEl.className = 'board-row';
+      for (let c = 0; c < cols; c++) {
+        const cell = board[r][c];
+        const el = document.createElement('div');
+        el.className = 'cell';
+        el.style.width = size + 'px';
+        el.style.height = size + 'px';
+        el.style.fontSize = (size * 0.45) + 'px';
+
+        if (cell.revealed) {
+          if (cell.mine) {
+            el.classList.add('mine-revealed');
+            if (deathCell && deathCell.r === r && deathCell.c === c) el.classList.add('dead-mine');
+            el.textContent = '💣';
+          } else {
+            el.classList.add('revealed');
+            if (cell.count > 0) {
+              el.textContent = cell.count;
+              el.classList.add('n' + cell.count);
+            }
+          }
+        } else if (cell.flagged) {
+          el.classList.add('flagged');
+          el.textContent = '⚑';
+          if (gameState === 'won') el.classList.add('win-flag');
+        } else if (gameState === 'won' && cell.mine) {
+          el.classList.add('win-flag');
+          el.textContent = '⚑';
+        }
+
+        el.addEventListener('click', (e) => {
+          if (e.ctrlKey) { e.preventDefault(); handleCellClick(r, c, true); }
+          else handleCellClick(r, c, false);
+        });
+        el.addEventListener('contextmenu', (e) => {
+          e.preventDefault();
+          handleCellClick(r, c, true);
+        });
+
+        rowEl.appendChild(el);
+      }
+      boardEl.appendChild(rowEl);
+    }
+  }
+
+  function updateCell(r, c) {
+    const size = getCellSize();
+    const { cols } = DIFFICULTIES[difficulty];
+    const boardEl = document.getElementById('board');
+    const rowEl = boardEl.children[r];
+    if (!rowEl) return;
+    const el = rowEl.children[c];
+    if (!el) return;
+
+    el.className = 'cell';
+    el.style.width = size + 'px';
+    el.style.height = size + 'px';
+    el.textContent = '';
+
+    const cell = board[r][c];
+    if (cell.flagged) {
+      el.classList.add('flagged');
+      el.textContent = '⚑';
+    }
+  }
+
+  function showOverlay(type) {
+    const overlay = document.getElementById('overlay');
+    const title = document.getElementById('overlay-title');
+    const sub = document.getElementById('overlay-sub');
+    overlay.className = 'show ' + type;
+    if (type === 'won') {
+      title.textContent = 'YOU WIN';
+      sub.textContent = 'Cleared in ' + timeVal + 's';
+    } else {
+      title.textContent = 'GAME OVER';
+      sub.textContent = 'Survived ' + timeVal + 's';
+    }
+  }
+
+  function hideOverlay() {
+    document.getElementById('overlay').className = '';
+  }
+
+  // Difficulty buttons
+  document.querySelectorAll('.diff-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      document.querySelectorAll('.diff-btn').forEach(b => b.classList.remove('active'));
+      btn.classList.add('active');
+      difficulty = btn.dataset.diff;
+      initBoard();
+    });
+  });
+
+  document.getElementById('reset-btn').addEventListener('click', initBoard);
+  document.getElementById('overlay-btn').addEventListener('click', initBoard);
+
+  // Prevent browser context menu on board
+  document.getElementById('board-wrap').addEventListener('contextmenu', e => e.preventDefault());
+
+  initBoard();
+</script>
+</body>
+</html>
